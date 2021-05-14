@@ -1,5 +1,7 @@
 # See LICENSE.txt for license details.
 
+CC=gcc
+CXX=g++
 CXX_FLAGS += -std=c++11 -O3 -Wall
 PAR_FLAG = -fopenmp
 
