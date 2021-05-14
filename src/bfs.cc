@@ -172,6 +172,61 @@ pvector<NodeID> DOBFS(const Graph &g, NodeID source, int alpha = 15,
   return parent;
 }
 
+// Pull-only BFS, modified by cutting bottom up and heuristic code from 
+// DOBFS function above.
+pvector<NodeID> TDBFS(const Graph &g, NodeID source) {
+  //PrintStep("Source", static_cast<int64_t>(source));
+  //Timer t;
+  //t.Start();
+  pvector<NodeID> parent = InitParent(g);
+  //t.Stop();
+  //PrintStep("i", t.Seconds());
+  parent[source] = source;
+  SlidingQueue<NodeID> queue(g.num_nodes());
+  queue.push_back(source);
+  queue.slide_window();
+  Bitmap curr(g.num_nodes());
+  curr.reset();
+  Bitmap front(g.num_nodes());
+  front.reset();
+  int64_t edges_to_check = g.num_edges_directed();
+  int64_t scout_count = g.out_degree(source);
+  while (!queue.empty()) {
+    /*
+		if (scout_count > edges_to_check / alpha) {
+      int64_t awake_count, old_awake_count;
+      TIME_OP(t, QueueToBitmap(queue, front));
+      PrintStep("e", t.Seconds());
+      awake_count = queue.size();
+      queue.slide_window();
+      do {
+        t.Start();
+        old_awake_count = awake_count;
+        awake_count = BUStep(g, parent, front, curr);
+        front.swap(curr);
+        t.Stop();
+        PrintStep("bu", t.Seconds(), awake_count);
+      } while ((awake_count >= old_awake_count) ||
+               (awake_count > g.num_nodes() / beta));
+      TIME_OP(t, BitmapToQueue(g, front, queue));
+      PrintStep("c", t.Seconds());
+      scout_count = 1;
+    } else { */
+      //t.Start();
+      edges_to_check -= scout_count;
+      scout_count = TDStep(g, parent, queue);
+      queue.slide_window();
+      //t.Stop();
+      //PrintStep("td", t.Seconds(), queue.size());
+    //}
+  }
+  #pragma omp parallel for
+  for (NodeID n = 0; n < g.num_nodes(); n++)
+    if (parent[n] < -1)
+      parent[n] = -1;
+  return parent;
+}
+
 
 void PrintBFSStats(const Graph &g, const pvector<NodeID> &bfs_tree) {
   int64_t tree_size = 0;
@@ -248,7 +303,7 @@ int main(int argc, char* argv[]) {
   Builder b(cli);
   Graph g = b.MakeGraph();
   SourcePicker<Graph> sp(g, cli.start_vertex());
-  auto BFSBound = [&sp] (const Graph &g) { return DOBFS(g, sp.PickNext()); };
+  auto BFSBound = [&sp] (const Graph &g) { return TDBFS(g, sp.PickNext()); };
   SourcePicker<Graph> vsp(g, cli.start_vertex());
   auto VerifierBound = [&vsp] (const Graph &g, const pvector<NodeID> &parent) {
     return BFSVerifier(g, vsp.PickNext(), parent);

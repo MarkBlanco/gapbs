@@ -10,6 +10,7 @@
 #include <random>
 #include <utility>
 #include <vector>
+#include <limits>
 
 #include "builder.h"
 #include "graph.h"
@@ -94,6 +95,9 @@ bool VerifyUnimplemented(...) {
 }
 
 
+// Changes made by Mark Blanco to do multiple trials and take the min:
+#define MIN(a,b) (a) > (b) ? (b) : (a)
+#define REPEAT_TRIALS 10
 // Calls (and times) kernel according to command line arguments
 template<typename GraphT_, typename GraphFunc, typename AnalysisFunc,
          typename VerifierFunc>
@@ -104,11 +108,16 @@ void BenchmarkKernel(const CLApp &cli, const GraphT_ &g,
   double total_seconds = 0;
   Timer trial_timer;
   for (int iter=0; iter < cli.num_trials(); iter++) {
-    trial_timer.Start();
-    auto result = kernel(g);
-    trial_timer.Stop();
-    PrintTime("Trial Time", trial_timer.Seconds());
-    total_seconds += trial_timer.Seconds();
+		double repeat_trial_time = std::numeric_limits<double>::max();
+		pvector<NodeID> result;
+		for (int repeat_trial=0; repeat_trial < REPEAT_TRIALS; repeat_trial++){
+			trial_timer.Start();
+			result = kernel(g);
+			trial_timer.Stop();
+			PrintTime("Repeat Trial Time", trial_timer.Seconds());
+			repeat_trial_time = MIN(repeat_trial_time, trial_timer.Seconds());
+		}
+    total_seconds += repeat_trial_time;
     if (cli.do_analysis() && (iter == (cli.num_trials()-1)))
       stats(g, result);
     if (cli.do_verify()) {
