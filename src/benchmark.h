@@ -18,6 +18,7 @@
 #include "util.h"
 #include "writer.h"
 
+#define REPEAT_TRIALS 10
 
 /*
 GAP Benchmark Suite
@@ -47,21 +48,41 @@ typedef WriterBase<NodeID, WNode> WeightedWriter;
 template<typename GraphT_>
 class SourcePicker {
  public:
-  explicit SourcePicker(const GraphT_ &g, NodeID given_source = -1)
+  explicit SourcePicker(const GraphT_ &g, NodeID given_source = -1, int64_t trials=REPEAT_TRIALS)
       : given_source(given_source), rng(kRandSeed), udist(0, g.num_nodes()-1),
-        g_(g) {}
+        g_(g) {
+					trials_run = 0;
+					trials_to_run = trials;
+				}
 
   NodeID PickNext() {
-    if (given_source != -1)
-      return given_source;
-    NodeID source;
-    do {
-      source = udist(rng);
-    } while (g_.out_degree(source) == 0);
+		if (given_source != -1)
+			return given_source;
+		NodeID source;
+		trials_run++;
+		if (trials_run==1){
+			// Find new source for first run.
+			do {
+				source = udist(rng);
+			} while (g_.out_degree(source) == 0);
+			last_src = source;
+		} else if (trials_run < trials_to_run){
+			// Continue giving out the same source ID to repeat the trial.
+			source = last_src;
+		} else if (trials_run == trials_to_run){
+			// Reset the trial counter, set up to move to next source
+			// in the following call.
+			source = last_src;// Last time we use this one
+			trials_run = 0;
+		}
+		printf("Giving source node %u\n", source);
     return source;
   }
 
  private:
+	NodeID last_src;
+	int64_t trials_to_run;
+	int64_t trials_run;
   NodeID given_source;
   std::mt19937 rng;
   std::uniform_int_distribution<NodeID> udist;
@@ -97,7 +118,6 @@ bool VerifyUnimplemented(...) {
 
 // Changes made by Mark Blanco to do multiple trials and take the min:
 #define MIN(a,b) (a) > (b) ? (b) : (a)
-#define REPEAT_TRIALS 10
 // Calls (and times) kernel according to command line arguments
 template<typename GraphT_, typename GraphFunc, typename AnalysisFunc,
          typename VerifierFunc>
@@ -117,6 +137,7 @@ void BenchmarkKernel(const CLApp &cli, const GraphT_ &g,
 			PrintTime("Repeat Trial Time", trial_timer.Seconds());
 			repeat_trial_time = MIN(repeat_trial_time, trial_timer.Seconds());
 		}
+		PrintTime("Best Trial Time", repeat_trial_time);
     total_seconds += repeat_trial_time;
     if (cli.do_analysis() && (iter == (cli.num_trials()-1)))
       stats(g, result);

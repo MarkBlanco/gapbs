@@ -191,6 +191,7 @@ pvector<NodeID> TDBFS(const Graph &g, NodeID source) {
   front.reset();
   int64_t edges_to_check = g.num_edges_directed();
   int64_t scout_count = g.out_degree(source);
+	uint32_t depth = 0;
   while (!queue.empty()) {
     /*
 		if (scout_count > edges_to_check / alpha) {
@@ -219,11 +220,13 @@ pvector<NodeID> TDBFS(const Graph &g, NodeID source) {
       //t.Stop();
       //PrintStep("td", t.Seconds(), queue.size());
     //}
+		depth++;
   }
   #pragma omp parallel for
   for (NodeID n = 0; n < g.num_nodes(); n++)
     if (parent[n] < -1)
       parent[n] = -1;
+	//printf("Depth: %lu\n", depth);
   return parent;
 }
 
